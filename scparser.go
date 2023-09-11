@@ -279,7 +279,7 @@ func parseGoModFile() []string {
 func loadPackages() []*packages.Package {
 	err := exec.Command(`go`, `mod`, `vendor`).Run()
 	if err != nil {
-		panic(err)
+		fmt.Println("Warning: go mod vendor failed:", err)
 	}
 	pkgs, err := packages.Load(&packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
