@@ -5,7 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"io/ioutil"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -16,7 +16,7 @@ import (
 // within the Go module packages. It takes the package path and function name as input
 // arguments and returns a formatted string containing the combined source code.
 // The function will panic if the provided function is not found in the package path.
-func Parse(funcPkgPath, funcName string, excludeRoot bool) string {
+func Parse(funcPkgPath, funcName string, excludeRoot, codeOnly bool) string {
 	// Change the working directory to the given package directory
 	changeBack := changeDir(funcPkgPath)
 	defer changeBack()
@@ -32,7 +32,7 @@ func Parse(funcPkgPath, funcName string, excludeRoot bool) string {
 		p.processFunction(funcSig, 5)
 	}
 
-	return p.toString(excludeRoot)
+	return p.toString(excludeRoot, codeOnly)
 }
 
 type parser struct {
@@ -67,22 +67,38 @@ func newParser(funcToFileAndPkg map[*types.Signature]fileAndPkg) *parser {
 }
 
 // Convert functions into one string
-func (p *parser) toString(excludeRoot bool) string {
+func (p *parser) toString(excludeRoot, codeOnly bool) string {
 	var result string
 	for k, pkg := range p.pkgOrder {
 		if k == 0 && excludeRoot {
 			continue
 		}
 		if k > 1 || (k == 1 && !excludeRoot) {
-			result += pkg.Name + "\n"
+			result += formatPkg(pkg.Name, codeOnly) + "\n"
 		}
-		result += "```" + p.functions[pkg] + "```"
+		result += formatFunctions(p.functions[pkg], codeOnly)
 		if k < len(p.pkgOrder)-1 {
 			result += "\n\n"
 		}
 	}
 
 	return result
+}
+
+func formatPkg(pkgName string, codeOnly bool) string {
+	if codeOnly {
+		return `// ` + pkgName
+	}
+
+	return pkgName
+}
+
+func formatFunctions(functions string, codeOnly bool) string {
+	if codeOnly {
+		return functions
+	}
+
+	return "```" + functions + "```"
 }
 
 // processFunction processes a function with the provided package path and signature, and its underlying functions up to the specified depth
@@ -200,7 +216,7 @@ func (p *parser) processUnderlyingFunctions(pkg *packages.Package, fn *ast.FuncD
 func extractSourceCode(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl) (string, error) {
 	var sb strings.Builder
 	// Read the content of the file containing the function
-	fileContent, err := ioutil.ReadFile(fset.Position(fn.Pos()).Filename)
+	fileContent, err := os.ReadFile(fset.Position(fn.Pos()).Filename)
 	if err != nil {
 		return "", err
 	}
@@ -236,7 +252,7 @@ func extractSourceCode(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl) (s
 
 // parseGoModFile parses the go.mod file and returns a slice of package paths.
 func parseGoModFile() []string {
-	content, err := ioutil.ReadFile("go.mod")
+	content, err := os.ReadFile("go.mod")
 	if err != nil {
 		panic(err)
 	}
