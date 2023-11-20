@@ -1,4 +1,4 @@
-module git.ultraware.nl/elwin/scparser
+module github.com/elwint/scparser
 
 go 1.20
 
